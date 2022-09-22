@@ -37,7 +37,7 @@ type (
 )
 
 // tooloLog Package level logger, defaults to log.Default()
-var tooloLog *logger = &logger{l: stdlog.Default()}
+var tooloLog = &logger{l: stdlog.Default()}
 
 // Console Prints %+v of arguments, great to debug stuff
 func Console(obj ...any) {
