@@ -1,5 +1,5 @@
 on: [ push, pull_request ]
-name: Test
+name: Test and release
 jobs:
   test:
     strategy:
@@ -30,14 +30,14 @@ jobs:
       - run: go test -race ./...
 
   release:
-#    if: ${{ always() }} # ignore test failures
     needs:
       - test
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@master
-      - name: Bump the version on master push
+      - uses: actions/checkout@v3
+      - name: Bump the version on main push
         uses: hennejg/github-tag-action@v4.3.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          release_branches: "main"
