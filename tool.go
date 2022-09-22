@@ -227,15 +227,14 @@ func (l *logger) LogError(err error, msgs ...string) {
 	if l.l == nil {
 		return
 	}
-	msg := strings.Join(msgs, ": ")
 	if isrus, ok := l.l.(LogRus); ok {
-		isrus.WithError(err).Errorln(msg)
+		isrus.WithError(err).Errorln(strings.Join(msgs, ": "))
 		return
 	}
 	if len(msgs) > 0 {
 		msgs = append(msgs, "") // add final colon
 	}
-	l.l.Println(errors.New(msg + err.Error()))
+	l.l.Println(errors.New(strings.Join(msgs, ": ") + err.Error()))
 }
 
 // PanicOnError Loose function to die with error
@@ -244,5 +243,5 @@ func (l *logger) PanicOnError(err error, msgs ...string) {
 		return
 	}
 	l.LogError(err, msgs...)
-	l.l.Panicln("PANIC reason ^^^")
+	l.l.Panicln()
 }
