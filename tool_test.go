@@ -24,7 +24,7 @@ func (t *testLogger) Println(a ...any) {
 }
 
 func (t *testLogger) Panicln(a ...any) {
-	t.buf += fmt.Sprintln(a...)
+	panic(a)
 }
 
 func (t *testLogger) Printf(s string, a ...any) {
@@ -85,6 +85,31 @@ func (s *ToolTestSuite) TestJsonify() {
 		s.NotEmpty(res.Bytes())
 		s.Equal([]byte(`["oh","hi","there"]`), res.Bytes())
 	})
+	s.Run("invalid", func() {
+		res := Jsonify(func() {})
+		s.Empty(res)
+	})
+}
+
+func (s *ToolTestSuite) TestObjectify() {
+	s.Run("string", func() {
+		out := map[string]string{}
+		in := `{"key":"value"}`
+
+		res := Objectify(in, &out)
+		s.True(res)
+
+		s.Equal(map[string]string{"key": "value"}, out)
+	})
+	s.Run("bytestring", func() {
+		out := map[string]string{}
+		in := []byte(`{"key":"value"}`)
+
+		res := Objectify(in, &out)
+		s.True(res)
+
+		s.Equal(map[string]string{"key": "value"}, out)
+	})
 }
 
 func (s *ToolTestSuite) TestRetryFunc() {
@@ -113,6 +138,112 @@ func (s *ToolTestSuite) TestRetryFunc() {
 	})
 }
 
+func (s *ToolTestSuite) TestTry() {
+	s.Run("failure", func() {
+		s.False(Try(nil))
+	})
+	s.Run("success", func() {
+		s.True(Try(fmt.Errorf("error")))
+	})
+	s.Run("failure verbose", func() {
+		s.False(Try(nil, true))
+		s.Empty(testLog.buf)
+	})
+	s.Run("success verbose", func() {
+		s.True(Try(fmt.Errorf("verbose error"), true))
+		s.Equal("verbose error\n", testLog.buf)
+	})
+}
+
+func (s *ToolTestSuite) TestMust() {
+	s.Run("failure", func() {
+		s.NotPanics(func() {
+			Must(nil)
+		})
+	})
+	s.Run("success", func() {
+		s.Panics(func() {
+			Must(fmt.Errorf("error"))
+		})
+	})
+}
+
+// TestRandInt is non-deterministic and hollow, but it exists for the sake of the coverage
+func (s *ToolTestSuite) TestRandInt() {
+	s.Contains([]int{1, 2, 3, 4, 5}, RandInt(1, 5))
+}
+
+func (s *ToolTestSuite) TestPtr() {
+	intPtr := Ptr(1)
+	s.IsType(func() *int { i := 0; return &i }(), intPtr)
+
+	strPtr := Ptr("test")
+	s.IsType(func() *string { s := ""; return &s }(), strPtr)
+
+	boolPtr := Ptr(true)
+	s.IsType(func() *bool { s := true; return &s }(), boolPtr)
+}
+
+func (s *ToolTestSuite) TestRecoverer() {
+	for _, tc := range []struct {
+		name      string
+		initial   int
+		expected  int
+		maxPanics int
+		success   bool
+	}{
+		{name: "valid 0", initial: 0, expected: 1, maxPanics: 0, success: true},
+		{name: "valid 1", initial: 0, expected: 1, maxPanics: 1, success: true},
+		{name: "panic 0", maxPanics: 0, success: false},
+		{name: "panic 10", maxPanics: 10, success: false},
+	} {
+		s.Run(tc.name, func() {
+			recovers := 0
+			if tc.success {
+				s.NoError(
+					Recoverer(tc.maxPanics, func() {
+						tc.initial = tc.expected
+					}, tc.name),
+				)
+				s.Equal(tc.expected, tc.initial)
+			} else {
+				s.Error(
+					Recoverer(tc.maxPanics, func() {
+						recovers++
+						panic("test")
+					}, tc.name),
+				)
+				s.Equal(tc.maxPanics, recovers-1)
+			}
+		})
+	}
+
+	s.NoError(
+		Recoverer(0, func() {}),
+	)
+}
+
+func (s *ToolTestSuite) TestStrtr() {
+	in := "abcdef"
+	expected := "rstxyz"
+
+	actual := Strtr(in, map[string]string{
+		"a":   "r",
+		"b":   "s",
+		"c":   "t",
+		"def": "xyz",
+	})
+	s.Equal(expected, actual)
+	s.Equal(in, Strtr(in, map[string]string{}))
+	s.Equal(in, Strtr(in, map[string]string{"": "b"}))
+	s.Empty(Strtr("", map[string]string{"a": "b"}))
+	s.Empty(Strtr("", map[string]string{"": ""}))
+	s.Equal(in, Strtr(in, map[string]string{"abc": "abc"}))
+}
+
+func (s *ToolTestSuite) TestIdentifyPanic() {
+	s.NotPanics(func() { identifyPanic() })
+}
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(ToolTestSuite))
 }

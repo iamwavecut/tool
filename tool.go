@@ -4,13 +4,14 @@ package tool
 import (
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
 	stdlog "log"
 	"math/big"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"golang.org/x/exp/constraints"
 )
@@ -111,23 +112,23 @@ func RetryFunc[num constraints.Signed](attempts num, sleep time.Duration, f func
 }
 
 // Recoverer Recovers job from panic, if maxPanics<0 then infinitely
-func Recoverer[num constraints.Integer](maxPanics num, f func(), jobID ...string) error {
-	var recovErr error
+func Recoverer[num constraints.Integer](maxPanics num, f func(), jobID ...string) (recovErr error) {
 	defer func() {
 		if err := recover(); err != nil {
-			msg := fmt.Sprintf(`Job "%s" panics with message: %s, %s`, strings.Join(jobID, " "), err, identifyPanic())
-			tooloLog.LogError(errors.New(msg))
+			panicErr := fmt.Errorf(`job %spanics with message: %s, %s`, strings.Join(jobID, " ")+" ", err, identifyPanic())
+			tooloLog.LogError(panicErr)
 
-			if maxPanics == 0 {
-				recovErr = errors.New("maximum recoveries exceeded")
-			} else {
+			if maxPanics != 0 {
 				recovErr = Recoverer(maxPanics-1, f, jobID...)
+			}
+			if recovErr == nil {
+				recovErr = panicErr
 			}
 			return
 		}
 	}()
 	f()
-	return recovErr
+	return
 }
 
 // Jsonify Returns Varchar implementation of the serialized value, returns empty on error
@@ -141,8 +142,7 @@ func Jsonify(s any) Varchar {
 
 // Objectify Unmarshalls value to the target pointer value
 func Objectify[T ~[]byte | ~string](in T, target any) bool {
-	str := string(in)
-	return !Try(json.Unmarshal([]byte(str), target), true)
+	return !Try(json.Unmarshal([]byte(in), target), true)
 }
 
 // Strtr Replaces all old string occurrences with new string in subject
@@ -151,6 +151,9 @@ func Strtr(subject string, oldToNew map[string]string) string {
 		return subject
 	}
 	for old, news := range oldToNew {
+		if old == "" || old == news {
+			continue
+		}
 		subject = strings.ReplaceAll(subject, old, news)
 	}
 	return subject
@@ -196,7 +199,7 @@ func (s Varchar) String() string {
 }
 
 func (s *Varchar) MarshalJSON() ([]byte, error) {
-	return Jsonify(s.String()).Bytes(), nil
+	return Jsonify(s.Bytes()).Bytes(), nil
 }
 
 // Log Logs anything
