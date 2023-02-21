@@ -70,9 +70,12 @@ func Try(err error, verbose ...bool) bool {
 }
 
 // Must Tolerates no errors.
-func Must(err error) {
+func Must(err error, verbose ...bool) {
 	if err != nil {
-		tooloLog.PanicOnError(catchableError{err}, "failed")
+		if len(verbose) > 0 && verbose[0] {
+			tooloLog.LogError(err)
+		}
+		panic(catchableError{err})
 	}
 }
 
