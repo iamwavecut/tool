@@ -72,7 +72,7 @@ func Try(err error, verbose ...bool) bool {
 // Must Tolerates no errors.
 func Must(err error) {
 	if err != nil {
-		tooloLog.PanicOnError(err, "failed")
+		tooloLog.PanicOnError(catchableError{err}, "failed")
 	}
 }
 
@@ -156,7 +156,7 @@ func RetryFunc[num constraints.Signed](attempts num, sleep time.Duration, f func
 		if !Try(retryErr) {
 			return nil
 		}
-		if 0 == attempts {
+		if attempts == 0 {
 			break
 		}
 		attempts--
