@@ -294,11 +294,11 @@ func (l *logger) LogError(err error, msgs ...string) {
 	l.l.Println(errors.New(strings.Join(msgs, ": ") + err.Error()))
 }
 
-// PanicOnError Loose function to die with error
+// PanicOnError Loose function to panic with error
 func (l *logger) PanicOnError(err error, msgs ...string) {
 	if l.l == nil {
 		return
 	}
 	l.LogError(err, msgs...)
-	l.l.Panicln()
+	panic(err)
 }
