@@ -57,7 +57,6 @@ func (s *ToolTestSuite) TestIn() {
 }
 
 func (s *ToolTestSuite) TestConsole() {
-
 	s.Run("1", func() {
 		Console("123")
 		s.Equal("> 123\n", testLog.buf)
@@ -244,6 +243,7 @@ func (s *ToolTestSuite) TestStrtr() {
 func (s *ToolTestSuite) TestIdentifyPanic() {
 	s.NotPanics(func() { identifyPanic() })
 }
+
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(ToolTestSuite))
 }

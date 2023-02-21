@@ -35,7 +35,14 @@ type (
 	}
 
 	Varchar string
+
+	catchableError struct {
+		error
+	}
 )
+
+// Unwrap Returns the wrapped error
+func (e catchableError) Unwrap() error { return e.error }
 
 // tooloLog Package level logger, defaults to log.Default()
 var tooloLog = &logger{l: stdlog.Default()}
@@ -64,9 +71,57 @@ func Try(err error, verbose ...bool) bool {
 
 // Must Tolerates no errors.
 func Must(err error) {
-	if nil != err {
+	if err != nil {
 		tooloLog.PanicOnError(err, "failed")
 	}
+}
+
+// Return Ignores errors, returns value.
+func Return[T any](val T, _ error) T {
+	return val
+}
+
+// MustReturn Tolerates no errors, returns value.
+func MustReturn[T any](val T, err error) T {
+	Must(err)
+	return val
+}
+
+// Err Returns the last argument if it is an error, otherwise nil
+func Err(args ...any) error {
+	var err error
+	if len(args) > 0 {
+		err, _ = args[len(args)-1].(error)
+	}
+	return err
+}
+
+// Catch Recovers from panic and callbacks with error
+// If error is not catchableError, it will panic again
+// May be used as defer, coupled with MustReturn or Must, to override named return values
+//
+// Usage:
+//
+//	  func example() (val *http.Request, err error) {
+//		defer tool.Catch(func(caught error) {
+//			err = caught
+//	 	})
+//
+//		val = tool.MustReturn(funcThatReturnsValAndErr()) // <- this will be caught if err!=nil
+//		panic(errors.New("some error")) // <- this will not be caught
+//		return
+//	}
+func Catch(fn func(err error)) {
+	e := recover()
+	if e == nil {
+		return
+	}
+	var caught catchableError
+	if iamError, ok := e.(error); ok && errors.As(iamError, &caught) {
+		fn(caught)
+		return
+	}
+	panic(e)
 }
 
 // RandInt Return a random number in specified range.
@@ -215,14 +270,13 @@ func (l *logger) LogDeep(obj ...any) {
 	if l.l == nil {
 		return
 	}
-	lastIndex := len(obj) - 1
-	for i, subj := range obj {
-		l.l.Printf("%+v", subj)
-		if lastIndex != i {
-			l.l.Print(" ")
-		}
+	var buf strings.Builder
+	for _, subj := range obj {
+		buf.WriteString(fmt.Sprintf("%+v ", subj))
 	}
-	l.l.Print("\n")
+	str := buf.String()[:buf.Len()-1]
+	str = strings.ReplaceAll(str, "\n", "\\n")
+	l.l.Println(str)
 }
 
 // LogError Loose function to log error
