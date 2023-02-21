@@ -118,7 +118,7 @@ func Catch(fn func(err error)) {
 	}
 	var caught catchableError
 	if iamError, ok := e.(error); ok && errors.As(iamError, &caught) {
-		fn(caught)
+		fn(caught.Unwrap())
 		return
 	}
 	panic(e)
