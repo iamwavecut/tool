@@ -58,8 +58,8 @@ func (s *ToolTestSuite) TestIn() {
 
 func (s *ToolTestSuite) TestConsole() {
 	s.Run("1", func() {
-		Console("123")
-		s.Equal("> 123\n", testLog.buf)
+		Console("123", "456", "789")
+		s.Equal("> 123 456 789\n", testLog.buf)
 	})
 	testLog.buf = ""
 	s.Run("2", func() {
@@ -70,6 +70,23 @@ func (s *ToolTestSuite) TestConsole() {
 	s.Run("3", func() {
 		Console(nil)
 		s.Equal("> <nil>\n", testLog.buf)
+	})
+}
+
+func (s *ToolTestSuite) TestNonZero() {
+	s.Run("string", func() {
+		s.Equal("hi", NonZero("hi", "there"))
+		s.Equal("there", NonZero("", "there"))
+	})
+	s.Run("int", func() {
+		s.Equal(1, NonZero(1, 2))
+		s.Equal(2, NonZero(0, 2))
+	})
+	type testStruct struct {
+		i int
+	}
+	s.Run("struct", func() {
+		s.Equal(testStruct{i: 2}, NonZero(testStruct{}, testStruct{i: 2}))
 	})
 }
 

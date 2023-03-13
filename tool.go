@@ -49,8 +49,7 @@ var tooloLog = &logger{l: stdlog.Default()}
 
 // Console Prints %+v of arguments, great to debug stuff
 func Console(obj ...any) {
-	tooloLog.l.Print("> ")
-	tooloLog.LogDeep(obj...)
+	tooloLog.LogDeep(append([]any{">"}, obj...)...)
 }
 
 // SetLogger Sets tool package logger, pass nil to disable logging
@@ -217,6 +216,21 @@ func Strtr(subject string, oldToNew map[string]string) string {
 	return subject
 }
 
+// NonZero Returns first non-zero value or zero value if all values are zero
+func NonZero[T comparable](ts ...T) T {
+	var zeroValue T
+	if len(ts) == 0 {
+		return zeroValue
+	}
+	for _, t := range ts {
+		if t == zeroValue {
+			continue
+		}
+		return t
+	}
+	return zeroValue
+}
+
 // identifyPanic Helper function to get user-friendly call stack message.
 func identifyPanic() string {
 	var name, file string
@@ -278,7 +292,7 @@ func (l *logger) LogDeep(obj ...any) {
 		buf.WriteString(fmt.Sprintf("%+v ", subj))
 	}
 	str := buf.String()[:buf.Len()-1]
-	str = strings.ReplaceAll(str, "\n", "\\n")
+	str = strings.ReplaceAll(strings.ReplaceAll(str, "\r", "\\r"), "\n", "\\n")
 	l.l.Println(str)
 }
 
