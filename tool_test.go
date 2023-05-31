@@ -261,6 +261,33 @@ func (s *ToolTestSuite) TestIdentifyPanic() {
 	s.NotPanics(func() { identifyPanic() })
 }
 
+func (s *ToolTestSuite) TestExecTemplate() {
+	s.Run("simple", func() {
+		s.Equal("hello world", ExecTemplate("hello {{.}}", "world"))
+	})
+	s.Run("complex", func() {
+		s.Equal("hello world", ExecTemplate("hello {{.name}}", map[string]string{"name": "world"}))
+	})
+	s.Run("no map key (partial render)", func() {
+		s.Equal("hello ", ExecTemplate("hello {{.name}}", map[string]string{}))
+	})
+	s.Run("struct", func() {
+		type Name struct {
+			Name string
+		}
+		s.Equal("hello world", ExecTemplate("hello {{.Name}}", Name{Name: "world"}))
+	})
+	s.Run("struct no field (error)", func() {
+		type Name struct {
+			Value string
+		}
+		s.Equal("", ExecTemplate("hello {{.Name}}", Name{Value: "world"}))
+	})
+	s.Run("empty", func() {
+		s.Equal("", ExecTemplate("", "world"))
+	})
+}
+
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(ToolTestSuite))
 }

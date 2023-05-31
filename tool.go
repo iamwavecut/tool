@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	stdlog "log"
 	"math/big"
 	"runtime"
@@ -318,4 +319,17 @@ func (l *logger) PanicOnError(err error, msgs ...string) {
 	}
 	l.LogError(err, msgs...)
 	panic(err)
+}
+
+func ExecTemplate(templateText string, templateVars any) string {
+	tpl, err := template.New("ez").Parse(templateText)
+	if Try(err) {
+		return ""
+	}
+	var buf strings.Builder
+	err = tpl.Execute(&buf, templateVars)
+	if Try(err) {
+		return ""
+	}
+	return buf.String()
 }
