@@ -59,17 +59,17 @@ func (s *ToolTestSuite) TestIn() {
 func (s *ToolTestSuite) TestConsole() {
 	s.Run("1", func() {
 		Console("123", "456", "789")
-		s.Equal("> 123 456 789\n", testLog.buf)
+		s.Equal("[tool_test.go:61]> 123 456 789\n", testLog.buf)
 	})
-	testLog.buf = ""
 	s.Run("2", func() {
+		testLog.buf = ""
 		Console(struct{ int }{123})
-		s.Equal("> {int:123}\n", testLog.buf)
+		s.Equal("[tool_test.go:66]> {int:123}\n", testLog.buf)
 	})
-	testLog.buf = ""
 	s.Run("3", func() {
+		testLog.buf = ""
 		Console(nil)
-		s.Equal("> <nil>\n", testLog.buf)
+		s.Equal("[tool_test.go:71]> <nil>\n", testLog.buf)
 	})
 }
 

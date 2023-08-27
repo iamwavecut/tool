@@ -8,6 +8,7 @@ import (
 	"html/template"
 	stdlog "log"
 	"math/big"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -48,9 +49,22 @@ func (e catchableError) Unwrap() error { return e.error }
 // tooloLog Package level logger, defaults to log.Default()
 var tooloLog = &logger{l: stdlog.Default()}
 
+func getRelativePath(filePath string) string {
+	relPath, err := filepath.Rel(filepath.Dir(findRootCaller()), filePath)
+	if err != nil {
+		return filePath // return the original file path if error
+	}
+	return relPath
+}
+
 // Console Prints %+v of arguments, great to debug stuff
-func Console(obj ...any) {
-	tooloLog.LogDeep(append([]any{">"}, obj...)...)
+func Console(obj ...interface{}) {
+	// get caller file path
+	_, file, line, _ := runtime.Caller(1)
+
+	relPath := getRelativePath(file)
+	prefix := fmt.Sprintf("[%s:%d]>", relPath, line)
+	tooloLog.LogDeep(append([]interface{}{prefix}, obj...)...)
 }
 
 // SetLogger Sets tool package logger, pass nil to disable logging
@@ -332,4 +346,20 @@ func ExecTemplate(templateText string, templateVars any) string {
 		return ""
 	}
 	return buf.String()
+}
+
+// findRootCaller Finds the root caller filepath of the application
+func findRootCaller() string {
+	const MaxDepth = 32
+
+	for i := 0; i < MaxDepth; i++ {
+		_, file, _, ok := runtime.Caller(i)
+		if !ok {
+			break
+		}
+		if i == MaxDepth-1 || !strings.Contains(file, "runtime/") {
+			return file
+		}
+	}
+	return ""
 }
