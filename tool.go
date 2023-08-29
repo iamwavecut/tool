@@ -9,6 +9,7 @@ import (
 	stdlog "log"
 	"math/big"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"time"
@@ -286,7 +287,11 @@ func (s Varchar) String() string {
 }
 
 func (s *Varchar) MarshalJSON() ([]byte, error) {
-	return Jsonify(s.Bytes()).Bytes(), nil
+	res := Jsonify(s.Bytes()).Bytes()
+	if len(res) == 0 {
+		return []byte("null"), fmt.Errorf("failed to marshal varchar")
+	}
+	return res, nil
 }
 
 // Log Logs anything
@@ -346,6 +351,36 @@ func ExecTemplate(templateText string, templateVars any) string {
 		return ""
 	}
 	return buf.String()
+}
+
+// ConvertSlice Return a new slice as `[]dstTypedValue.(type)` cast from the `srcSlice`
+func ConvertSlice[T any, Y any](srcSlice []T, destTypedValue Y) []Y {
+	srcReflectType := reflect.TypeOf(srcSlice)
+	if srcReflectType.Kind() != reflect.Slice {
+		panic("srcSlice is not a slice")
+	}
+	destType := reflect.TypeOf(destTypedValue)
+	destSlice := reflect.MakeSlice(reflect.SliceOf(destType), len(srcSlice), len(srcSlice))
+	for i := range srcSlice {
+		srcVal := reflect.ValueOf(srcSlice[i])
+		destVal := reflect.New(destType).Elem()
+		switch {
+		case srcVal.Type().ConvertibleTo(destType):
+			destVal = srcVal.Convert(destType)
+		case srcVal.Type().AssignableTo(destType):
+			destVal = srcVal
+		default:
+			for j := 0; j < srcVal.NumField(); j++ {
+				srcField := srcVal.Type().Field(j)
+				destField := destVal.FieldByName(srcField.Name)
+				if destField.IsValid() && srcField.Type.AssignableTo(destField.Type()) {
+					destField.Set(srcVal.Field(j))
+				}
+			}
+		}
+		destSlice.Index(i).Set(destVal)
+	}
+	return destSlice.Interface().([]Y)
 }
 
 // findRootCaller Finds the root caller filepath of the application
