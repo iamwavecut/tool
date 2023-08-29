@@ -4,7 +4,9 @@ package tool
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"html/template"
 	stdlog "log"
 	"math/big"
@@ -13,8 +15,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"golang.org/x/exp/constraints"
 )
@@ -99,6 +99,22 @@ func Return[T any](val T, _ error) T {
 	return val
 }
 
+// MultiMute Ignores errors, returns slice of results.
+func MultiMute[T any](a ...T) []T {
+	if len(a) == 0 {
+		return nil
+	}
+	val := reflect.ValueOf(a[len(a)-1])
+	lastInterface := val.Interface()
+	if reflect.TypeOf(lastInterface).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+		a = a[:len(a)-1]
+	}
+	if len(a) == 0 {
+		return nil
+	}
+	return a
+}
+
 // MustReturn Tolerates no errors, returns value.
 func MustReturn[T any](val T, err error) T {
 	Must(err)
@@ -134,9 +150,9 @@ func Catch(fn func(err error)) {
 	if e == nil {
 		return
 	}
-	var caught catchableError
-	if iamError, ok := e.(error); ok && errors.As(iamError, &caught) {
-		fn(caught.Unwrap())
+
+	if iamError, ok := e.(*catchableError); ok {
+		fn(iamError.Unwrap())
 		return
 	}
 	panic(e)
@@ -156,13 +172,8 @@ func Ptr[T any](n T) *T {
 }
 
 // In Checks if element is in a slice
-func In[T comparable](needle T, haystack []T) bool {
-	for _, spica := range haystack {
-		if spica == needle {
-			return true
-		}
-	}
-	return false
+func In[T comparable](needle T, haystack ...T) bool {
+	return slices.Contains(haystack, needle)
 }
 
 // RetryFunc Re-runs function if error returned
@@ -287,11 +298,13 @@ func (s Varchar) String() string {
 }
 
 func (s *Varchar) MarshalJSON() ([]byte, error) {
-	res := Jsonify(s.Bytes()).Bytes()
-	if len(res) == 0 {
-		return []byte("null"), fmt.Errorf("failed to marshal varchar")
+	if len(s.Bytes()) == 0 {
+		return s.Bytes(), nil
 	}
-	return res, nil
+	if res := Jsonify(s.Bytes()).Bytes(); len(res) > 0 {
+		return res, nil
+	}
+	return nil, fmt.Errorf("failed to marshal varchar")
 }
 
 // Log Logs anything
@@ -358,6 +371,11 @@ func ConvertSlice[T any, Y any](srcSlice []T, destTypedValue Y) []Y {
 	srcReflectType := reflect.TypeOf(srcSlice)
 	if srcReflectType.Kind() != reflect.Slice {
 		panic("srcSlice is not a slice")
+	}
+	if srcSlice == nil {
+		return nil
+	} else if len(srcSlice) == 0 {
+		return []Y{}
 	}
 	destType := reflect.TypeOf(destTypedValue)
 	destSlice := reflect.MakeSlice(reflect.SliceOf(destType), len(srcSlice), len(srcSlice))

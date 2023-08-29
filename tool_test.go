@@ -3,16 +3,16 @@ package tool
 import (
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/suite"
+	"reflect"
 	"strconv"
 	"testing"
-
-	"github.com/stretchr/testify/suite"
 )
 
 type (
 	ToolTestSuite struct {
 		suite.Suite
-		l StdLogger
+		StdLogger
 	}
 	testLogger struct {
 		buf string
@@ -37,6 +37,10 @@ func (t *testLogger) Print(a ...any) {
 
 var testLog = &testLogger{}
 
+func TestSuite(t *testing.T) {
+	suite.Run(t, new(ToolTestSuite))
+}
+
 func (s *ToolTestSuite) SetupSuite() {
 	SetLogger(testLog)
 }
@@ -47,29 +51,29 @@ func (s *ToolTestSuite) SetupTest() {
 
 func (s *ToolTestSuite) TestIn() {
 	s.Run("string", func() {
-		s.Equal(true, In("hi", []string{"oh", "hi", "there"}))
-		s.Equal(false, In("hi", []string{"hello", "beautiful"}))
+		s.True(In("hi", "oh", "hi", "there"))
+		s.False(In("hi", "hello", "beautiful"))
 	})
 	s.Run("byte", func() {
-		s.Equal(true, In(byte(2), []byte{1, 2, 3}))
-		s.Equal(false, In(byte(255), []byte{1, 2, 3}))
+		s.True(In(byte(2), []byte{1, 2, 3}...))
+		s.Equal(false, In(byte(255), []byte{1, 2, 3}...))
 	})
 }
 
 func (s *ToolTestSuite) TestConsole() {
 	s.Run("1", func() {
 		Console("123", "456", "789")
-		s.Equal("[tool_test.go:61]> 123 456 789\n", testLog.buf)
+		s.Equal("[tool_test.go:65]> 123 456 789\n", testLog.buf)
 	})
 	s.Run("2", func() {
 		testLog.buf = ""
 		Console(struct{ int }{123})
-		s.Equal("[tool_test.go:66]> {int:123}\n", testLog.buf)
+		s.Equal("[tool_test.go:70]> {int:123}\n", testLog.buf)
 	})
 	s.Run("3", func() {
 		testLog.buf = ""
 		Console(nil)
-		s.Equal("[tool_test.go:71]> <nil>\n", testLog.buf)
+		s.Equal("[tool_test.go:75]> <nil>\n", testLog.buf)
 	})
 }
 
@@ -288,6 +292,201 @@ func (s *ToolTestSuite) TestExecTemplate() {
 	})
 }
 
-func TestSuite(t *testing.T) {
-	suite.Run(t, new(ToolTestSuite))
+func (s *ToolTestSuite) TestMuteMulti() {
+	tests := []struct {
+		name string
+		in   []any
+		want []any
+	}{
+		{
+			name: "trailing error",
+			in:   []any{1, 2, 3, errors.New("error")},
+			want: []any{1, 2, 3},
+		},
+		{
+			name: "no error",
+			in:   []any{1, 2, 3},
+			want: []any{1, 2, 3},
+		},
+		{
+			name: "empty",
+			in:   []any{},
+			want: nil,
+		},
+		{
+			name: "only error",
+			in:   []any{errors.New("error")},
+			want: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		s.Run(tc.name, func() {
+			res := MultiMute(tc.in...)
+			s.Equal(tc.want, res)
+		})
+	}
+}
+
+func (s *ToolTestSuite) TestReturn() {
+	// Define multiple scenarios for your test
+	tests := []struct {
+		name     string
+		inputVal int
+		inputErr error
+	}{
+		{
+			name:     "error is nil",
+			inputVal: 5,
+			inputErr: nil,
+		},
+		{
+			name:     "error is not nil",
+			inputVal: 7,
+			inputErr: errors.New("an error"),
+		},
+	}
+
+	for _, test := range tests {
+		s.Run(test.name, func() {
+			result := Return(test.inputVal, test.inputErr)
+			s.Equal(test.inputVal, result)
+		})
+	}
+}
+
+func (s *ToolTestSuite) TestMustReturn() {
+	tests := []struct {
+		name        string
+		inputVal    int
+		inputErr    error
+		shouldPanic bool
+	}{
+		{
+			name:        "When error is nil",
+			inputVal:    5,
+			inputErr:    nil,
+			shouldPanic: false,
+		},
+		{
+			name:        "When error is not nil",
+			inputVal:    7,
+			inputErr:    errors.New("an error"),
+			shouldPanic: true,
+		},
+	}
+
+	for _, test := range tests {
+		s.Run(test.name, func() {
+			if test.shouldPanic {
+				s.Panics(func() { MustReturn(test.inputVal, test.inputErr) })
+			} else {
+				s.NotPanics(func() {
+					result := MustReturn(test.inputVal, test.inputErr)
+					s.Equal(test.inputVal, result)
+				})
+			}
+		})
+	}
+}
+
+func (s *ToolTestSuite) TestErr() {
+	errExpected := errors.New("Some error")
+	args := []any{"Hello", errExpected}
+	err := Err(args...)
+	s.NotNil(err)
+	s.Equal(errExpected, err)
+
+	args = []any{"Hello", "World"}
+	err = Err(args...)
+	s.Nil(err)
+
+	args = []any{}
+	err = Err(args...)
+	s.Nil(err)
+}
+
+func (s *ToolTestSuite) TestCatch() {
+	s.Run("catchable error", func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.Fail("Not expected to pass panic", r)
+			}
+		}()
+
+		defer Catch(func(caught error) {
+			s.EqualError(caught, "catchable error")
+		})
+
+		panic(&catchableError{errors.New("catchable error")})
+	})
+
+	s.Run("uncatchable error", func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.EqualError(r.(error), "uncatchable error")
+			} else {
+				s.Fail("Expected a panic")
+			}
+		}()
+
+		defer Catch(func(caught error) {
+			s.Fail("This should not be called")
+		})
+
+		panic(errors.New("uncatchable error"))
+	})
+}
+
+func (s *ToolTestSuite) TestConvertSlice() {
+	type testCase struct {
+		Name           string
+		Input          []int
+		DestTypeValue  float64 // used only for its type
+		ExpectedOutput []float64
+		ShouldPanic    bool
+	}
+
+	testCases := []testCase{
+		{
+			Name:           "valid slice conversion from int to float64",
+			Input:          []int{1, 2, 3},
+			DestTypeValue:  float64(0),
+			ExpectedOutput: []float64{1.0, 2.0, 3.0},
+			ShouldPanic:    false,
+		},
+		{
+			Name:           "empty slice conversion",
+			Input:          []int{},
+			DestTypeValue:  float64(0),
+			ExpectedOutput: []float64{},
+			ShouldPanic:    false,
+		},
+		{
+			Name:           "nil slice conversion",
+			Input:          nil,
+			DestTypeValue:  float64(0),
+			ExpectedOutput: nil,
+			ShouldPanic:    false,
+		},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.Name, func() {
+			var result interface{}
+			if test.ShouldPanic {
+				s.Panics(func() {
+					result = ConvertSlice(test.Input, test.DestTypeValue)
+				})
+			} else {
+				result = ConvertSlice(test.Input, test.DestTypeValue)
+				s.Equal(reflect.TypeOf(result).Kind(), reflect.Slice, "result should be a slice")
+				if _, ok := result.([]float64); !ok {
+					s.Fail("result should be a slice of float64")
+				}
+				s.Equal(len(result.([]float64)), len(test.Input), "result slice size should match input slice size")
+				s.Equal(result, test.ExpectedOutput, "slice conversion not as expected")
+			}
+		})
+	}
 }
