@@ -3,7 +3,6 @@ module github.com/iamwavecut/tool
 go 1.18
 
 require (
-	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.0
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
 )
