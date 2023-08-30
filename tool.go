@@ -380,7 +380,7 @@ func ConvertSlice[T any, Y any](srcSlice []T, destTypedValue Y) []Y {
 	destType := reflect.TypeOf(destTypedValue)
 	destSlice := reflect.MakeSlice(reflect.SliceOf(destType), len(srcSlice), len(srcSlice))
 	for i := range srcSlice {
-		srcVal := reflect.ValueOf(srcSlice[i])
+		srcVal := reflect.Indirect(reflect.ValueOf(srcSlice[i]))
 		destVal := reflect.New(destType).Elem()
 		switch {
 		case srcVal.Type().ConvertibleTo(destType):

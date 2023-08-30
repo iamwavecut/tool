@@ -489,4 +489,20 @@ func (s *ToolTestSuite) TestConvertSlice() {
 			}
 		})
 	}
+
+	// edge case: srcVal is a pointer
+	s.Run("valid slice conversion from *int to float64", func() {
+		input := []*int{Ptr(1), Ptr(2), Ptr(3)}
+		destTypeValue := float64(0)
+		expectedOutput := []float64{1.0, 2.0, 3.0}
+
+		result := ConvertSlice(input, destTypeValue)
+		s.Equal(reflect.TypeOf(result).Kind(), reflect.Slice, "result should be a slice")
+		var resultInterface any = result
+		if _, ok := resultInterface.([]float64); !ok {
+			s.Fail("result should be a slice of float64")
+		}
+		s.Equal(len(resultInterface.([]float64)), len(input), "result slice size should match input slice size")
+		s.Equal(result, expectedOutput, "slice conversion not as expected")
+	})
 }
