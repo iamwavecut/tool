@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/exp/slices"
 	"html/template"
 	stdlog "log"
 	"math/big"
@@ -15,6 +14,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/slices"
 
 	"golang.org/x/exp/constraints"
 )
@@ -60,11 +61,21 @@ func getRelativePath(filePath string) string {
 
 // Console Prints %+v of arguments, great to debug stuff
 func Console(obj ...interface{}) {
-	// get caller file path
-	_, file, line, _ := runtime.Caller(1)
+	pc, _, line, ok := runtime.Caller(1)
+	if !ok {
+		tooloLog.LogError(errors.New("unable to get caller information"))
+		return
+	}
+	fn := runtime.FuncForPC(pc)
+	if fn == nil {
+		tooloLog.LogError(errors.New("unable to get function information"))
+		return
+	}
+	pkg := strings.Split(fn.Name(), "/")
+	pkgName := strings.Join(pkg[0:len(pkg)-1], "/") + "/"
+	pkgName += strings.Split(pkg[len(pkg)-1:][0], ".")[0]
 
-	relPath := getRelativePath(file)
-	prefix := fmt.Sprintf("[%s:%d]>", relPath, line)
+	prefix := fmt.Sprintf("[%s:%d]>", pkgName, line)
 	tooloLog.LogDeep(append([]interface{}{prefix}, obj...)...)
 }
 

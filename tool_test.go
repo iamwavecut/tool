@@ -63,17 +63,17 @@ func (s *ToolTestSuite) TestIn() {
 func (s *ToolTestSuite) TestConsole() {
 	s.Run("1", func() {
 		Console("123", "456", "789")
-		s.Equal("[tool_test.go:65]> 123 456 789\n", testLog.buf)
+		s.Equal("[github.com/iamwavecut/tool:65]> 123 456 789\n", testLog.buf)
 	})
 	s.Run("2", func() {
 		testLog.buf = ""
 		Console(struct{ int }{123})
-		s.Equal("[tool_test.go:70]> {int:123}\n", testLog.buf)
+		s.Equal("[github.com/iamwavecut/tool:70]> {int:123}\n", testLog.buf)
 	})
 	s.Run("3", func() {
 		testLog.buf = ""
 		Console(nil)
-		s.Equal("[tool_test.go:75]> <nil>\n", testLog.buf)
+		s.Equal("[github.com/iamwavecut/tool:75]> <nil>\n", testLog.buf)
 	})
 }
 
