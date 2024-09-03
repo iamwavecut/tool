@@ -366,6 +366,7 @@ func (l *logger) PanicOnError(err error, msgs ...string) {
 
 func ExecTemplate(templateText string, templateVars any) string {
 	tpl, err := template.New("ez").Parse(templateText)
+	tpl.Option("missingkey=zero")
 	if Try(err) {
 		return ""
 	}
