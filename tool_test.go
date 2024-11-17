@@ -3,10 +3,11 @@ package tool
 import (
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/suite"
 	"reflect"
 	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/suite"
 )
 
 type (
@@ -63,17 +64,17 @@ func (s *ToolTestSuite) TestIn() {
 func (s *ToolTestSuite) TestConsole() {
 	s.Run("1", func() {
 		Console("123", "456", "789")
-		s.Equal("[github.com/iamwavecut/tool:65]> 123 456 789\n", testLog.buf)
+		s.Equal("[github.com/iamwavecut/tool:66]> 123 456 789\n", testLog.buf)
 	})
 	s.Run("2", func() {
 		testLog.buf = ""
 		Console(struct{ int }{123})
-		s.Equal("[github.com/iamwavecut/tool:70]> {int:123}\n", testLog.buf)
+		s.Equal("[github.com/iamwavecut/tool:71]> {int:123}\n", testLog.buf)
 	})
 	s.Run("3", func() {
 		testLog.buf = ""
 		Console(nil)
-		s.Equal("[github.com/iamwavecut/tool:75]> <nil>\n", testLog.buf)
+		s.Equal("[github.com/iamwavecut/tool:76]> <nil>\n", testLog.buf)
 	})
 }
 
@@ -505,4 +506,12 @@ func (s *ToolTestSuite) TestConvertSlice() {
 		s.Equal(len(resultInterface.([]float64)), len(input), "result slice size should match input slice size")
 		s.Equal(result, expectedOutput, "slice conversion not as expected")
 	})
+}
+
+func (s *ToolTestSuite) TestIsZero() {
+	s.True(IsZero(0))
+	s.True(IsZero(""))
+	s.True(IsZero(false))
+	var v *int
+	s.True(IsZero(v))
 }

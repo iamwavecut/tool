@@ -269,6 +269,12 @@ func NonZero[T comparable](ts ...T) T {
 	return zeroValue
 }
 
+// IsZero Checks if value is zero
+func IsZero[T comparable](v T) bool {
+	var zero T
+	return v == zero
+}
+
 // identifyPanic Helper function to get user-friendly call stack message.
 func identifyPanic() string {
 	var name, file string
