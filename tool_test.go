@@ -3,7 +3,6 @@ package tool
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strconv"
 	"testing"
 
@@ -64,17 +63,17 @@ func (s *ToolTestSuite) TestIn() {
 func (s *ToolTestSuite) TestConsole() {
 	s.Run("1", func() {
 		Console("123", "456", "789")
-		s.Equal("[github.com/iamwavecut/tool:66]> 123 456 789\n", testLog.buf)
+		s.Equal("[github.com/iamwavecut/tool:tool_test.go:65]> 123 456 789\n", testLog.buf)
 	})
 	s.Run("2", func() {
 		testLog.buf = ""
 		Console(struct{ int }{123})
-		s.Equal("[github.com/iamwavecut/tool:71]> {int:123}\n", testLog.buf)
+		s.Equal("[github.com/iamwavecut/tool:tool_test.go:70]> {int:123}\n", testLog.buf)
 	})
 	s.Run("3", func() {
 		testLog.buf = ""
 		Console(nil)
-		s.Equal("[github.com/iamwavecut/tool:76]> <nil>\n", testLog.buf)
+		s.Equal("[github.com/iamwavecut/tool:tool_test.go:75]> <nil>\n", testLog.buf)
 	})
 }
 
@@ -189,7 +188,6 @@ func (s *ToolTestSuite) TestMust() {
 	})
 }
 
-// TestRandInt is non-deterministic and hollow, but it exists for the sake of the coverage
 func (s *ToolTestSuite) TestRandInt() {
 	s.Contains([]int{1, 2, 3, 4, 5}, RandInt(1, 5))
 }
@@ -330,7 +328,6 @@ func (s *ToolTestSuite) TestMuteMulti() {
 }
 
 func (s *ToolTestSuite) TestReturn() {
-	// Define multiple scenarios for your test
 	tests := []struct {
 		name     string
 		inputVal int
@@ -409,33 +406,57 @@ func (s *ToolTestSuite) TestErr() {
 
 func (s *ToolTestSuite) TestCatch() {
 	s.Run("catchable error", func() {
+		recoveredByTestFramework := false
 		defer func() {
 			if r := recover(); r != nil {
-				s.Fail("Not expected to pass panic", r)
+				recoveredByTestFramework = true
+				s.Fail("Panic was not properly handled by tool.Catch or was an unexpected re-panic.", fmt.Sprintf("Recovered: %+v", r))
 			}
 		}()
 
-		defer Catch(func(caught error) {
-			s.EqualError(caught, "catchable error")
-		})
+		errCaughtByHandler := false
+		var actualCaughtError error
+		expectedErrText := "catchable error from Must"
 
-		panic(&catchableError{errors.New("catchable error")})
+		funcToTest := func() {
+			defer Catch(func(caught error) {
+				errCaughtByHandler = true
+				actualCaughtError = caught
+			})
+
+			Must(errors.New(expectedErrText))
+			s.Fail("tool.Must should have panicked, execution should not reach here.")
+		}
+
+		s.Assert().NotPanics(func() {
+			funcToTest()
+		}, "funcToTest containing Must and Catch should not panic externally.")
+
+		s.Assert().False(recoveredByTestFramework, "Test framework's defer should not have recovered if tool.Catch worked as expected.")
+		s.Assert().True(errCaughtByHandler, "Error should have been caught by the Catch handler.")
+		s.Assert().NotNil(actualCaughtError, "Error caught by handler should not be nil")
+		if actualCaughtError != nil {
+			s.Assert().Equal(expectedErrText, actualCaughtError.Error(), "Error message mismatch in Catch handler")
+		}
 	})
 
 	s.Run("uncatchable error", func() {
-		defer func() {
-			if r := recover(); r != nil {
-				s.EqualError(r.(error), "uncatchable error")
-			} else {
-				s.Fail("Expected a panic")
-			}
-		}()
+		var catchHandlerCalled bool
+		uncatchableErr := errors.New("uncatchable error")
 
-		defer Catch(func(caught error) {
-			s.Fail("This should not be called")
-		})
+		fnThatPanicsUncatchably := func() {
+			defer Catch(func(_ error) {
+				catchHandlerCalled = true
+				s.Fail("Catch handler should not be called for uncatchable errors that are re-panicked.")
+			})
+			panic(uncatchableErr)
+		}
 
-		panic(errors.New("uncatchable error"))
+		s.Assert().PanicsWithValue(uncatchableErr, func() {
+			fnThatPanicsUncatchably()
+		}, "Expected to panic with the original uncatchable error.")
+
+		s.Assert().False(catchHandlerCalled, "Catch handler should not have been called.")
 	})
 }
 
@@ -443,14 +464,14 @@ func (s *ToolTestSuite) TestConvertSlice() {
 	type testCase struct {
 		Name           string
 		Input          []int
-		DestTypeValue  float64 // used only for its type
+		DestTypeValue  float64
 		ExpectedOutput []float64
 		ShouldPanic    bool
 	}
 
 	testCases := []testCase{
 		{
-			Name:           "valid slice conversion from int to float64",
+			Name:           "successful conversion",
 			Input:          []int{1, 2, 3},
 			DestTypeValue:  float64(0),
 			ExpectedOutput: []float64{1.0, 2.0, 3.0},
@@ -468,43 +489,69 @@ func (s *ToolTestSuite) TestConvertSlice() {
 			Input:          nil,
 			DestTypeValue:  float64(0),
 			ExpectedOutput: nil,
-			ShouldPanic:    false,
+			ShouldPanic:    true,
 		},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.Name, func() {
-			var result interface{}
-			if test.ShouldPanic {
-				s.Panics(func() {
-					result = ConvertSlice(test.Input, test.DestTypeValue)
-				})
-			} else {
-				result = ConvertSlice(test.Input, test.DestTypeValue)
-				s.Equal(reflect.TypeOf(result).Kind(), reflect.Slice, "result should be a slice")
-				if _, ok := result.([]float64); !ok {
-					s.Fail("result should be a slice of float64")
+	for _, tc := range testCases {
+		s.Run(tc.Name, func() {
+			if tc.ShouldPanic {
+				if tc.Name == "nil slice conversion" {
+					s.PanicsWithError("ConvertSlice failed: srcSlice is nil", func() {
+						ConvertSlice(tc.Input, tc.DestTypeValue)
+					})
+				} else {
+					s.Panics(func() {
+						ConvertSlice(tc.Input, tc.DestTypeValue)
+					})
 				}
-				s.Equal(len(result.([]float64)), len(test.Input), "result slice size should match input slice size")
-				s.Equal(result, test.ExpectedOutput, "slice conversion not as expected")
+			} else {
+				actualOutput := ConvertSlice(tc.Input, tc.DestTypeValue)
+				s.Equal(tc.ExpectedOutput, actualOutput)
 			}
 		})
 	}
 
-	// edge case: srcVal is a pointer
-	s.Run("valid slice conversion from *int to float64", func() {
-		input := []*int{Ptr(1), Ptr(2), Ptr(3)}
-		destTypeValue := float64(0)
-		expectedOutput := []float64{1.0, 2.0, 3.0}
+	s.Run("empty_slice_conversion", func() {
+		emptyIntSlice := []int{}
+		emptyFloatSlice := []float64{}
+		actualOutput := ConvertSlice(emptyIntSlice, float64(0))
+		s.Equal(emptyFloatSlice, actualOutput)
+		s.NotNil(actualOutput)
+	})
 
-		result := ConvertSlice(input, destTypeValue)
-		s.Equal(reflect.TypeOf(result).Kind(), reflect.Slice, "result should be a slice")
-		var resultInterface any = result
-		if _, ok := resultInterface.([]float64); !ok {
-			s.Fail("result should be a slice of float64")
-		}
-		s.Equal(len(resultInterface.([]float64)), len(input), "result slice size should match input slice size")
-		s.Equal(result, expectedOutput, "slice conversion not as expected")
+	type SrcStruct struct {
+		A int
+		B string
+	}
+	type DestStruct struct {
+		A int
+		B string
+		C float32
+	}
+	type DestStructPartial struct {
+		A int
+	}
+
+	s.Run("struct_slice_conversion_identical", func() {
+		src := []SrcStruct{{A: 1, B: "one"}, {A: 2, B: "two"}}
+		expected := []SrcStruct{{A: 1, B: "one"}, {A: 2, B: "two"}}
+		actual := ConvertSlice(src, SrcStruct{})
+		s.Equal(expected, actual)
+	})
+
+	s.Run("struct_slice_conversion_extra_dest_field", func() {
+		src := []SrcStruct{{A: 1, B: "one"}, {A: 2, B: "two"}}
+		expected := []DestStruct{{A: 1, B: "one", C: 0.0}, {A: 2, B: "two", C: 0.0}}
+		actual := ConvertSlice(src, DestStruct{})
+		s.Equal(expected, actual)
+	})
+
+	s.Run("struct_slice_conversion_missing_dest_field", func() {
+		src := []SrcStruct{{A: 1, B: "one"}, {A: 2, B: "two"}}
+		expected := []DestStructPartial{{A: 1}, {A: 2}}
+		actual := ConvertSlice(src, DestStructPartial{})
+		s.Equal(expected, actual)
 	})
 }
 

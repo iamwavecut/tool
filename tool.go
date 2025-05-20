@@ -2,22 +2,17 @@
 package tool
 
 import (
-	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"fmt"
 	stdlog "log"
-	"math/big"
-	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
-	"text/template"
 	"time"
 
-	"golang.org/x/exp/slices"
-
 	"golang.org/x/exp/constraints"
+
+	"github.com/iamwavecut/tool/safetool"
 )
 
 type (
@@ -51,17 +46,9 @@ func (e catchableError) Unwrap() error { return e.error }
 // tooloLog Package level logger, defaults to log.Default()
 var tooloLog = &logger{l: stdlog.Default()}
 
-func getRelativePath(filePath string) string {
-	relPath, err := filepath.Rel(filepath.Dir(findRootCaller()), filePath)
-	if err != nil {
-		return filePath // return the original file path if error
-	}
-	return relPath
-}
-
 // Console Prints %+v of arguments, great to debug stuff
 func Console(obj ...interface{}) {
-	pc, _, line, ok := runtime.Caller(1)
+	pc, file, line, ok := runtime.Caller(1)
 	if !ok {
 		tooloLog.LogError(errors.New("unable to get caller information"))
 		return
@@ -71,11 +58,18 @@ func Console(obj ...interface{}) {
 		tooloLog.LogError(errors.New("unable to get function information"))
 		return
 	}
+
+	displayFilePath, err := safetool.GetRelativePath(file)
+	if err != nil {
+		tooloLog.LogError(err)
+		displayFilePath = file
+	}
+
 	pkg := strings.Split(fn.Name(), "/")
 	pkgName := strings.Join(pkg[0:len(pkg)-1], "/") + "/"
 	pkgName += strings.Split(pkg[len(pkg)-1:][0], ".")[0]
 
-	prefix := fmt.Sprintf("[%s:%d]>", pkgName, line)
+	prefix := fmt.Sprintf("[%s:%s:%d]>", pkgName, displayFilePath, line)
 	tooloLog.LogDeep(append([]interface{}{prefix}, obj...)...)
 }
 
@@ -162,7 +156,7 @@ func Catch(fn func(err error)) {
 		return
 	}
 
-	if iamError, ok := e.(*catchableError); ok {
+	if iamError, ok := e.(catchableError); ok {
 		fn(iamError.Unwrap())
 		return
 	}
@@ -171,20 +165,20 @@ func Catch(fn func(err error)) {
 
 // RandInt Return a random number in specified range.
 func RandInt[num constraints.Signed](min, max num) num {
-	bInt, err := rand.Int(rand.Reader, big.NewInt(int64(max-min)))
+	val, err := safetool.RandInt(min, max)
 	Must(err)
-	bInt = bInt.Add(bInt, big.NewInt(int64(min)))
-	return num(bInt.Int64())
+	return val
 }
 
 // Ptr Return a pointer for any passed object
 func Ptr[T any](n T) *T {
-	return &n
+	return safetool.Ptr(n)
 }
 
 // In Checks if element is in a slice
+// Deprecated: Use slices.Contains instead
 func In[T comparable](needle T, haystack ...T) bool {
-	return slices.Contains(haystack, needle)
+	return safetool.In(needle, haystack...)
 }
 
 // RetryFunc Re-runs function if error returned
@@ -227,31 +221,23 @@ func Recoverer[num constraints.Integer](maxPanics num, f func(), jobID ...string
 }
 
 // Jsonify Returns Varchar implementation of the serialized value, returns empty on error
-func Jsonify(s any) Varchar {
-	b, err := json.Marshal(s)
+func Jsonify(s any) safetool.Varchar {
+	val, err := safetool.Jsonify(s)
 	if Try(err, true) {
 		return ""
 	}
-	return Varchar(b)
+	return val
 }
 
 // Objectify Unmarshalls value to the target pointer value
 func Objectify[T ~[]byte | ~string](in T, target any) bool {
-	return !Try(json.Unmarshal([]byte(in), target), true)
+	err := safetool.Objectify(in, target)
+	return !Try(err, true)
 }
 
 // Strtr Replaces all old string occurrences with new string in subject
 func Strtr(subject string, oldToNew map[string]string) string {
-	if len(oldToNew) == 0 || len(subject) == 0 {
-		return subject
-	}
-	for old, news := range oldToNew {
-		if old == "" || old == news {
-			continue
-		}
-		subject = strings.ReplaceAll(subject, old, news)
-	}
-	return subject
+	return safetool.Strtr(subject, oldToNew)
 }
 
 // NonZero Returns first non-zero value or zero value if all values are zero
@@ -298,30 +284,15 @@ func identifyPanic() string {
 	case name != "":
 		return fmt.Sprintf("%v:%v", name, line)
 	case file != "":
-		return fmt.Sprintf("%v:%v", file, line)
+		relPath, err := safetool.GetRelativePath(file)
+		if err != nil {
+			tooloLog.LogError(err)
+			relPath = file
+		}
+		return fmt.Sprintf("%v:%v", relPath, line)
 	}
 
 	return fmt.Sprintf("pc:%x", pc)
-}
-
-// Bytes Return Varchar as Bytes slice
-func (s Varchar) Bytes() []byte {
-	return []byte(s)
-}
-
-// String Return Varchar as string
-func (s Varchar) String() string {
-	return string(s)
-}
-
-func (s *Varchar) MarshalJSON() ([]byte, error) {
-	if len(s.Bytes()) == 0 {
-		return s.Bytes(), nil
-	}
-	if res := Jsonify(s.Bytes()).Bytes(); len(res) > 0 {
-		return res, nil
-	}
-	return nil, fmt.Errorf("failed to marshal varchar")
 }
 
 // Log Logs anything
@@ -356,7 +327,7 @@ func (l *logger) LogError(err error, msgs ...string) {
 		return
 	}
 	if len(msgs) > 0 {
-		msgs = append(msgs, "") // add final colon
+		msgs = append(msgs, "")
 	}
 	l.l.Println(errors.New(strings.Join(msgs, ": ") + err.Error()))
 }
@@ -371,66 +342,18 @@ func (l *logger) PanicOnError(err error, msgs ...string) {
 }
 
 func ExecTemplate(templateText string, templateVars any) string {
-	tpl, err := template.New("ez").Parse(templateText)
-	tpl.Option("missingkey=zero")
+	val, err := safetool.ExecTemplate(templateText, templateVars)
 	if Try(err) {
 		return ""
 	}
-	var buf strings.Builder
-	err = tpl.Execute(&buf, templateVars)
-	if Try(err) {
-		return ""
-	}
-	return buf.String()
+	return val
 }
 
 // ConvertSlice Return a new slice as `[]dstTypedValue.(type)` cast from the `srcSlice`
 func ConvertSlice[T any, Y any](srcSlice []T, destTypedValue Y) []Y {
-	srcReflectType := reflect.TypeOf(srcSlice)
-	if srcReflectType.Kind() != reflect.Slice {
-		panic("srcSlice is not a slice")
+	val, err := safetool.ConvertSlice(srcSlice, destTypedValue)
+	if err != nil {
+		panic(fmt.Errorf("ConvertSlice failed: %w", err))
 	}
-	if srcSlice == nil {
-		return nil
-	} else if len(srcSlice) == 0 {
-		return []Y{}
-	}
-	destType := reflect.TypeOf(destTypedValue)
-	destSlice := reflect.MakeSlice(reflect.SliceOf(destType), len(srcSlice), len(srcSlice))
-	for i := range srcSlice {
-		srcVal := reflect.Indirect(reflect.ValueOf(srcSlice[i]))
-		destVal := reflect.New(destType).Elem()
-		switch {
-		case srcVal.Type().ConvertibleTo(destType):
-			destVal = srcVal.Convert(destType)
-		case srcVal.Type().AssignableTo(destType):
-			destVal = srcVal
-		default:
-			for j := 0; j < srcVal.NumField(); j++ {
-				srcField := srcVal.Type().Field(j)
-				destField := destVal.FieldByName(srcField.Name)
-				if destField.IsValid() && srcField.Type.AssignableTo(destField.Type()) {
-					destField.Set(srcVal.Field(j))
-				}
-			}
-		}
-		destSlice.Index(i).Set(destVal)
-	}
-	return destSlice.Interface().([]Y)
-}
-
-// findRootCaller Finds the root caller filepath of the application
-func findRootCaller() string {
-	const MaxDepth = 32
-
-	for i := 0; i < MaxDepth; i++ {
-		_, file, _, ok := runtime.Caller(i)
-		if !ok {
-			break
-		}
-		if i == MaxDepth-1 || !strings.Contains(file, "runtime/") {
-			return file
-		}
-	}
-	return ""
+	return val
 }
