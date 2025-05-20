@@ -236,9 +236,9 @@ func ConvertSlice[T any, Y any](srcSlice []T, destTypedValue Y) ([]Y, error) {
 	return destSlice.Interface().([]Y), nil
 }
 
-// findRootCaller finds the root caller filepath of the application.
+// FindRootCaller finds the root caller filepath of the application.
 // It skips runtime frames.
-func findRootCaller() string {
+func FindRootCaller() string {
 	const maxDepth = 32
 	pcs := make([]uintptr, maxDepth)
 	n := runtime.Callers(0, pcs)
@@ -264,7 +264,7 @@ func findRootCaller() string {
 // GetRelativePath calculates a relative path from the directory of the root caller to the given filePath.
 // It returns the relative path or the original filePath and an error if the calculation fails.
 func GetRelativePath(filePath string) (string, error) {
-	callerPath := findRootCaller()
+	callerPath := FindRootCaller()
 	if callerPath == "" {
 		return filePath, errors.New("could not determine caller path")
 	}

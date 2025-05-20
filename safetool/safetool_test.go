@@ -749,22 +749,43 @@ func TestGetRelativePath(t *testing.T) {
 		t.Fatalf("Failed to create target file: %v", err)
 	}
 
+	absTargetFilePath, err := filepath.Abs(targetFilePath)
+	if err != nil {
+		t.Fatalf("Failed to get absolute path for target file: %v", err)
+	}
+
 	t.Run("get relative path to a temp file", func(t *testing.T) {
 		t.Parallel()
-		relPath, err := safetool.GetRelativePath(targetFilePath)
+		relPath, err := safetool.GetRelativePath(absTargetFilePath)
 		if err != nil {
-			t.Errorf("GetRelativePath(%s) returned error: %v", targetFilePath, err)
+			t.Errorf("GetRelativePath(%s) returned error: %v", absTargetFilePath, err)
 		}
 		if relPath == "" {
-			t.Errorf("GetRelativePath returned an empty string for %s", targetFilePath)
+			t.Errorf("GetRelativePath returned an empty string for %s", absTargetFilePath)
 		}
-		t.Logf("GetRelativePath for %s (abs: %s) from test context resulted in: %s", "myfile.txt", targetFilePath, relPath)
+		callerPath := safetool.FindRootCaller()
+		if callerPath != "" {
+			callerDir := filepath.Dir(callerPath)
+			reconstructedPath := filepath.Join(callerDir, relPath)
+			normalizedReconstructed, errRec := filepath.EvalSymlinks(reconstructedPath)
+			normalizedAbsTarget, errAbs := filepath.EvalSymlinks(absTargetFilePath)
+
+			if errRec == nil && errAbs == nil && normalizedReconstructed != normalizedAbsTarget {
+				t.Logf("Original abs: %s", absTargetFilePath)
+				t.Logf("Caller dir: %s", callerDir)
+				t.Logf("Relative path: %s", relPath)
+				t.Logf("Reconstructed path (normalized): %s", normalizedReconstructed)
+				t.Logf("Original target path (normalized): %s", normalizedAbsTarget)
+				t.Errorf("Reconstructed path %s does not match original absolute target path %s", normalizedReconstructed, normalizedAbsTarget)
+			}
+		} else {
+			t.Log("Skipping full path reconstruction check as caller path could not be determined in test context.")
+		}
+		t.Logf("GetRelativePath for %s (abs: %s) from test context resulted in: %s", filepath.Base(absTargetFilePath), absTargetFilePath, relPath)
 	})
 
 	t.Run("filepath.Rel returns error", func(t *testing.T) {
 		t.Parallel()
-		// Using a path with a NUL character, which typically causes issues for path operations.
-		// Note: The behavior of filepath.Rel with NUL bytes might vary or be sanitized.
 		invalidFilePath := "some/path/with\x00/null.txt"
 		_, err := safetool.GetRelativePath(invalidFilePath)
 
@@ -774,14 +795,8 @@ func TestGetRelativePath(t *testing.T) {
 			if !strings.Contains(err.Error(), "failed to get relative path") {
 				t.Errorf("Expected error to contain 'failed to get relative path', got: %v", err)
 			}
-			// Further check if the wrapped error from filepath is present
-			// This depends on the exact error message from filepath.Rel which can be OS-specific
-			// For example, on some systems it might be "invalid argument" or similar for NUL byte.
-			// t.Logf("Got expected wrapped error: %v", err) // For diagnostics
 		}
 
-		// Attempt with a path that might confuse filepath.Rel on non-Windows systems
-		// by looking like a Windows absolute path.
 		if runtime.GOOS != "windows" {
 			confusingPath := "C:\\Windows\\System32\\notepad.exe"
 			_, errWindowsPath := safetool.GetRelativePath(confusingPath)
@@ -793,7 +808,6 @@ func TestGetRelativePath(t *testing.T) {
 		}
 	})
 
-	// Original Log for GetRelativePath about its limitations.
 	t.Log("GetRelativePath tests are limited due to its dependency on runtime.Caller for findRootCaller and the test execution context. The filepath.Rel error case is also hard to trigger consistently.")
 }
 
