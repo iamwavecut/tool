@@ -738,7 +738,7 @@ func TestConvertSlice(t *testing.T) {
 func TestGetRelativePath(t *testing.T) {
 	t.Parallel()
 
-	tempDir, err := os.MkdirTemp("", "testrelpath*")
+	tempDir, err := os.MkdirTemp(".", "testrelpath*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
