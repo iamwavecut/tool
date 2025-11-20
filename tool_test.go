@@ -203,6 +203,156 @@ func (s *ToolTestSuite) TestPtr() {
 	s.IsType(func() *bool { s := true; return &s }(), boolPtr)
 }
 
+func (s *ToolTestSuite) TestVal() {
+	s.Run("non-nil pointer", func() {
+		val := 42
+		ptr := &val
+		result := Val(ptr)
+		s.Equal(val, result)
+	})
+
+	s.Run("nil pointer", func() {
+		var ptr *int
+		result := Val(ptr)
+		s.Equal(0, result)
+	})
+
+	s.Run("string pointer", func() {
+		val := "hello"
+		ptr := &val
+		result := Val(ptr)
+		s.Equal(val, result)
+	})
+
+	s.Run("nil string pointer", func() {
+		var ptr *string
+		result := Val(ptr)
+		s.Equal("", result)
+	})
+
+	s.Run("struct pointer", func() {
+		type testStruct struct {
+			Value int
+		}
+		val := testStruct{Value: 100}
+		ptr := &val
+		result := Val(ptr)
+		s.Equal(val, result)
+	})
+}
+
+func (s *ToolTestSuite) TestNilPtr() {
+	s.Run("non-zero int", func() {
+		val := 42
+		ptr := NilPtr(val)
+		s.NotNil(ptr)
+		s.Equal(val, *ptr)
+	})
+
+	s.Run("zero int", func() {
+		val := 0
+		ptr := NilPtr(val)
+		s.Nil(ptr)
+	})
+
+	s.Run("non-zero string", func() {
+		val := "hello"
+		ptr := NilPtr(val)
+		s.NotNil(ptr)
+		s.Equal(val, *ptr)
+	})
+
+	s.Run("zero string", func() {
+		val := ""
+		ptr := NilPtr(val)
+		s.Nil(ptr)
+	})
+
+	s.Run("non-zero bool", func() {
+		val := true
+		ptr := NilPtr(val)
+		s.NotNil(ptr)
+		s.Equal(val, *ptr)
+	})
+
+	s.Run("zero bool", func() {
+		val := false
+		ptr := NilPtr(val)
+		s.Nil(ptr)
+	})
+
+	s.Run("struct with zero value", func() {
+		type testStruct struct {
+			Value int
+		}
+		val := testStruct{}
+		ptr := NilPtr(val)
+		s.Nil(ptr)
+	})
+
+	s.Run("struct with non-zero value", func() {
+		type testStruct struct {
+			Value int
+		}
+		val := testStruct{Value: 42}
+		ptr := NilPtr(val)
+		s.NotNil(ptr)
+		s.Equal(val.Value, ptr.Value)
+	})
+}
+
+func (s *ToolTestSuite) TestZeroVal() {
+	s.Run("int", func() {
+		result := ZeroVal(42)
+		s.Equal(0, result)
+	})
+
+	s.Run("string", func() {
+		result := ZeroVal("hello")
+		s.Equal("", result)
+	})
+
+	s.Run("bool", func() {
+		result := ZeroVal(true)
+		s.Equal(false, result)
+	})
+
+	s.Run("pointer", func() {
+		val := 42
+		ptr := &val
+		result := ZeroVal(ptr)
+		s.Nil(result)
+	})
+
+	s.Run("nil pointer", func() {
+		var ptr *int
+		result := ZeroVal(ptr)
+		s.Nil(result)
+	})
+
+	s.Run("struct", func() {
+		type testStruct struct {
+			Value int
+			Name  string
+		}
+		val := testStruct{Value: 100, Name: "test"}
+		result := ZeroVal(val)
+		s.Equal(testStruct{}, result)
+	})
+
+	s.Run("slice", func() {
+		val := []int{1, 2, 3}
+		result := ZeroVal(val)
+		s.Nil(result)
+	})
+
+	s.Run("map", func() {
+		val := map[string]int{"a": 1}
+		result := ZeroVal(val)
+		s.Nil(result)
+	})
+}
+
 func (s *ToolTestSuite) TestRecoverer() {
 	for _, tc := range []struct {
 		name      string

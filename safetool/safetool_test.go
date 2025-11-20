@@ -117,6 +117,243 @@ func TestPtr(t *testing.T) {
 	}
 }
 
+func TestVal(t *testing.T) {
+	t.Parallel()
+	t.Run("non-nil pointer", func(t *testing.T) {
+		t.Parallel()
+		val := 42
+		ptr := &val
+		result := safetool.Val(ptr)
+		if result != val {
+			t.Errorf("Expected Val to return %d, got %d", val, result)
+		}
+	})
+
+	t.Run("nil pointer", func(t *testing.T) {
+		t.Parallel()
+		var ptr *int
+		result := safetool.Val(ptr)
+		if result != 0 {
+			t.Errorf("Expected Val to return 0 for nil pointer, got %d", result)
+		}
+	})
+
+	t.Run("string pointer", func(t *testing.T) {
+		t.Parallel()
+		val := "hello"
+		ptr := &val
+		result := safetool.Val(ptr)
+		if result != val {
+			t.Errorf("Expected Val to return %s, got %s", val, result)
+		}
+	})
+
+	t.Run("nil string pointer", func(t *testing.T) {
+		t.Parallel()
+		var ptr *string
+		result := safetool.Val(ptr)
+		if result != "" {
+			t.Errorf("Expected Val to return empty string for nil pointer, got %s", result)
+		}
+	})
+
+	t.Run("struct pointer", func(t *testing.T) {
+		t.Parallel()
+		type testStruct struct {
+			Value int
+		}
+		val := testStruct{Value: 100}
+		ptr := &val
+		result := safetool.Val(ptr)
+		if result.Value != val.Value {
+			t.Errorf("Expected Val to return struct with Value %d, got %d", val.Value, result.Value)
+		}
+	})
+
+	t.Run("nil struct pointer", func(t *testing.T) {
+		t.Parallel()
+		type testStruct struct {
+			Value int
+		}
+		var ptr *testStruct
+		result := safetool.Val(ptr)
+		if result.Value != 0 {
+			t.Errorf("Expected Val to return zero struct for nil pointer, got Value %d", result.Value)
+		}
+	})
+}
+
+func TestNilPtr(t *testing.T) {
+	t.Parallel()
+	t.Run("non-zero int", func(t *testing.T) {
+		t.Parallel()
+		val := 42
+		ptr := safetool.NilPtr(val)
+		if ptr == nil {
+			t.Error("Expected NilPtr to return non-nil pointer for non-zero value")
+		}
+		if ptr != nil && *ptr != val {
+			t.Errorf("Expected NilPtr to return pointer to %d, got pointer to %d", val, *ptr)
+		}
+	})
+
+	t.Run("zero int", func(t *testing.T) {
+		t.Parallel()
+		val := 0
+		ptr := safetool.NilPtr(val)
+		if ptr != nil {
+			t.Errorf("Expected NilPtr to return nil for zero value, got pointer to %d", *ptr)
+		}
+	})
+
+	t.Run("non-zero string", func(t *testing.T) {
+		t.Parallel()
+		val := "hello"
+		ptr := safetool.NilPtr(val)
+		if ptr == nil {
+			t.Error("Expected NilPtr to return non-nil pointer for non-zero string")
+		}
+		if ptr != nil && *ptr != val {
+			t.Errorf("Expected NilPtr to return pointer to %s, got pointer to %s", val, *ptr)
+		}
+	})
+
+	t.Run("zero string", func(t *testing.T) {
+		t.Parallel()
+		val := ""
+		ptr := safetool.NilPtr(val)
+		if ptr != nil {
+			t.Errorf("Expected NilPtr to return nil for empty string, got pointer to %s", *ptr)
+		}
+	})
+
+	t.Run("non-zero bool", func(t *testing.T) {
+		t.Parallel()
+		val := true
+		ptr := safetool.NilPtr(val)
+		if ptr == nil {
+			t.Error("Expected NilPtr to return non-nil pointer for true")
+		}
+		if ptr != nil && *ptr != val {
+			t.Errorf("Expected NilPtr to return pointer to %t, got pointer to %t", val, *ptr)
+		}
+	})
+
+	t.Run("zero bool", func(t *testing.T) {
+		t.Parallel()
+		val := false
+		ptr := safetool.NilPtr(val)
+		if ptr != nil {
+			t.Errorf("Expected NilPtr to return nil for false, got pointer to %t", *ptr)
+		}
+	})
+
+	t.Run("struct with zero value", func(t *testing.T) {
+		t.Parallel()
+		type testStruct struct {
+			Value int
+		}
+		val := testStruct{}
+		ptr := safetool.NilPtr(val)
+		if ptr != nil {
+			t.Errorf("Expected NilPtr to return nil for zero struct, got pointer to %+v", *ptr)
+		}
+	})
+
+	t.Run("struct with non-zero value", func(t *testing.T) {
+		t.Parallel()
+		type testStruct struct {
+			Value int
+		}
+		val := testStruct{Value: 42}
+		ptr := safetool.NilPtr(val)
+		if ptr == nil {
+			t.Error("Expected NilPtr to return non-nil pointer for non-zero struct")
+		}
+		if ptr != nil && ptr.Value != val.Value {
+			t.Errorf("Expected NilPtr to return pointer to struct with Value %d, got %d", val.Value, ptr.Value)
+		}
+	})
+}
+
+func TestZeroVal(t *testing.T) {
+	t.Parallel()
+	t.Run("int", func(t *testing.T) {
+		t.Parallel()
+		result := safetool.ZeroVal(42)
+		if result != 0 {
+			t.Errorf("Expected ZeroVal to return 0, got %d", result)
+		}
+	})
+
+	t.Run("string", func(t *testing.T) {
+		t.Parallel()
+		result := safetool.ZeroVal("hello")
+		if result != "" {
+			t.Errorf("Expected ZeroVal to return empty string, got %s", result)
+		}
+	})
+
+	t.Run("bool", func(t *testing.T) {
+		t.Parallel()
+		result := safetool.ZeroVal(true)
+		if result != false {
+			t.Errorf("Expected ZeroVal to return false, got %t", result)
+		}
+	})
+
+	t.Run("pointer", func(t *testing.T) {
+		t.Parallel()
+		val := 42
+		ptr := &val
+		result := safetool.ZeroVal(ptr)
+		if result != nil {
+			t.Errorf("Expected ZeroVal to return nil for pointer, got %v", result)
+		}
+	})
+
+	t.Run("nil pointer", func(t *testing.T) {
+		t.Parallel()
+		var ptr *int
+		result := safetool.ZeroVal(ptr)
+		if result != nil {
+			t.Errorf("Expected ZeroVal to return nil for nil pointer, got %v", result)
+		}
+	})
+
+	t.Run("struct", func(t *testing.T) {
+		t.Parallel()
+		type testStruct struct {
+			Value int
+			Name  string
+		}
+		val := testStruct{Value: 100, Name: "test"}
+		result := safetool.ZeroVal(val)
+		expected := testStruct{}
+		if result != expected {
+			t.Errorf("Expected ZeroVal to return zero struct, got %+v", result)
+		}
+	})
+
+	t.Run("slice", func(t *testing.T) {
+		t.Parallel()
+		val := []int{1, 2, 3}
+		result := safetool.ZeroVal(val)
+		if result != nil {
+			t.Errorf("Expected ZeroVal to return nil for slice, got %v", result)
+		}
+	})
+
+	t.Run("map", func(t *testing.T) {
+		t.Parallel()
+		val := map[string]int{"a": 1}
+		result := safetool.ZeroVal(val)
+		if result != nil {
+			t.Errorf("Expected ZeroVal to return nil for map, got %v", result)
+		}
+	})
+}
+
 func TestIn(t *testing.T) {
 	t.Parallel()
 	t.Run("element present", func(t *testing.T) {

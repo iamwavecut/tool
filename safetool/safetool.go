@@ -57,6 +57,30 @@ func Ptr[T any](n T) *T {
 	return &n
 }
 
+// Val returns the value pointed to by ptr, or the zero value of T if ptr is nil.
+func Val[T any](ptr *T) T {
+	if ptr == nil {
+		var zero T
+		return zero
+	}
+	return *ptr
+}
+
+// NilPtr returns a pointer to n if n is not zero, otherwise returns nil.
+func NilPtr[T comparable](n T) *T {
+	var zero T
+	if n == zero {
+		return nil
+	}
+	return &n
+}
+
+// ZeroVal returns the zero value of type T, regardless of the input value.
+func ZeroVal[T any](_ T) T {
+	var zero T
+	return zero
+}
+
 // In checks if an element is present in a slice.
 func In[T comparable](needle T, haystack ...T) bool {
 	return slices.Contains(haystack, needle)

@@ -38,10 +38,13 @@ The `safetool` package provides alternative implementations of functions found i
 
 *   `In(needle, ...haystack) bool` - deprecated in favor of `slices.Contains`
 *   `IsZero(comparable) bool` - returns true if the value is the zero value for its type
+*   `NilPtr(comparable) *comparable` - returns a pointer to the input value if it's not zero, otherwise returns nil
 *   `NonZero(comparable) comparable` - returns the first non-zero value from the input arguments
 *   `Ptr(any) *any` - returns a pointer to the input value
 *   `RetryFunc(attempts int, sleep time.Duration, f func() error) error` - retries a function with exponential backoff
 *   `Strtr(subject string, oldToNew map[string]string) string` - replaces substrings in a string based on a mapping
+*   `Val(*any) any` - returns the value pointed to by the pointer, or zero value if pointer is nil
+*   `ZeroVal(any) any` - returns the zero value of the type, regardless of the input value
 
 ---
 

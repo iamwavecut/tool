@@ -175,6 +175,21 @@ func Ptr[T any](n T) *T {
 	return safetool.Ptr(n)
 }
 
+// Val Return the value pointed to by ptr, or the zero value of T if ptr is nil
+func Val[T any](ptr *T) T {
+	return safetool.Val(ptr)
+}
+
+// NilPtr Return a pointer to n if n is not zero, otherwise returns nil
+func NilPtr[T comparable](n T) *T {
+	return safetool.NilPtr(n)
+}
+
+// ZeroVal Return the zero value of type T, regardless of the input value
+func ZeroVal[T any](v T) T {
+	return safetool.ZeroVal(v)
+}
+
 // In Checks if element is in a slice
 // Deprecated: Use slices.Contains instead
 func In[T comparable](needle T, haystack ...T) bool {
